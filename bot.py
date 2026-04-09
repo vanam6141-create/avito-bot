@@ -10,7 +10,7 @@ from datetime import datetime
 # ========== КОНФИГУРАЦИЯ ==========
 BOT_TOKEN = "8712025256:AAGKjFD6FqqOdmuZtvLkDTbkpywAQJn_p7g"
 ADMIN_ID = 5188679965
-WEBHOOK_URL = "https://avito-bot.onrender.com/webhook"  # ЗАМЕНИТЕ ПОСЛЕ ДЕПЛОЯ
+WEBHOOK_URL = "https://avito-bot-vdls.onrender.com/webhook"
 
 # ========== БАЗА ДАННЫХ ==========
 conn = sqlite3.connect('avito_bot.db', check_same_thread=False)
