@@ -8,7 +8,7 @@ import sqlite3
 from datetime import datetime
 
 # ========== КОНФИГУРАЦИЯ ==========
-BOT_TOKEN = "8712025256:AAGKjFD6FqqOdmuZtvLkDTbkpywAQJn_p7g"
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 ADMIN_ID = 5188679965
 WEBHOOK_URL = "https://avito-bot-vdls.onrender.com/webhook"
 
