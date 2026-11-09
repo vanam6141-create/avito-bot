@@ -1,0 +1,102 @@
+from __future__ import annotations
+
+import sqlite3
+from pathlib import Path
+from contextlib import contextmanager
+from typing import Iterator
+
+SCHEMA = """
+PRAGMA foreign_keys = ON;
+CREATE TABLE IF NOT EXISTS users (
+    telegram_id INTEGER PRIMARY KEY,
+    username TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS searches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_id INTEGER NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    query TEXT NOT NULL,
+    region TEXT NOT NULL DEFAULT 'Вся Россия',
+    max_price INTEGER,
+    enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0,1)),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_searches_owner ON searches(owner_id, enabled);
+CREATE TABLE IF NOT EXISTS listings (
+    id TEXT PRIMARY KEY,
+    search_id INTEGER REFERENCES searches(id) ON DELETE SET NULL,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL,
+    price INTEGER,
+    market_price INTEGER,
+    condition_note TEXT,
+    risk_note TEXT,
+    score INTEGER NOT NULL CHECK(score BETWEEN 0 AND 100),
+    source TEXT NOT NULL,
+    first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_listings_score ON listings(score DESC, first_seen_at DESC);
+CREATE TABLE IF NOT EXISTS notification_log (
+    listing_id TEXT NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+    telegram_id INTEGER NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+    sent_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(listing_id, telegram_id)
+);
+"""
+
+class Database:
+    def __init__(self, path: Path):
+        self.path = path
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.connect() as conn:
+            conn.executescript(SCHEMA)
+
+    def connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.path, timeout=15)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA busy_timeout = 15000")
+        return conn
+
+    @contextmanager
+    def transaction(self) -> Iterator[sqlite3.Connection]:
+        conn = self.connect()
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
+    def register_user(self, telegram_id: int, username: str | None) -> None:
+        with self.transaction() as conn:
+            conn.execute(
+                "INSERT INTO users(telegram_id, username) VALUES(?, ?) "
+                "ON CONFLICT(telegram_id) DO UPDATE SET username=excluded.username",
+                (telegram_id, username),
+            )
+
+    def add_search(self, owner_id: int, query: str, region: str, max_price: int | None) -> int:
+        with self.transaction() as conn:
+            cur = conn.execute(
+                "INSERT INTO searches(owner_id, query, region, max_price) VALUES(?,?,?,?)",
+                (owner_id, query, region, max_price),
+            )
+            return int(cur.lastrowid)
+
+    def list_searches(self, owner_id: int) -> list[sqlite3.Row]:
+        with self.connect() as conn:
+            return list(conn.execute(
+                "SELECT id, query, region, max_price, enabled FROM searches "
+                "WHERE owner_id=? ORDER BY id DESC", (owner_id,)
+            ))
+
+    def set_searches_enabled(self, owner_id: int, enabled: bool) -> int:
+        with self.transaction() as conn:
+            cur = conn.execute("UPDATE searches SET enabled=? WHERE owner_id=?", (int(enabled), owner_id))
+            return cur.rowcount
+
+    def stats(self, owner_id: int) -> tuple[int, int]:
+        with self.connect() as conn:
+            searches = conn.execute("SELECT COUNT(*) FROM searches WHERE owner_id=? AND enabled=1", (owner_id,)).fetchone()[0]
+            alerts = conn.execute("SELECT COUNT(*) FROM notification_log WHERE telegram_id=?", (owner_id,)).fetchone()[0]
+            return int(searches), int(alerts)
