@@ -14,9 +14,9 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
-        token = os.getenv("SNIPER_BOT_TOKEN", "").strip()
+        token = (os.getenv("SNIPER_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN", "")).strip()
         if not token:
-            raise RuntimeError("SNIPER_BOT_TOKEN is not set")
+            raise RuntimeError("Set TELEGRAM_BOT_TOKEN (or SNIPER_BOT_TOKEN) in the hosting environment")
         raw_ids = os.getenv("SNIPER_ADMIN_IDS", "").strip()
         try:
             admin_ids = frozenset(int(value.strip()) for value in raw_ids.split(",") if value.strip())
