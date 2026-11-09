@@ -3,10 +3,15 @@
 The old review-task bot is no longer started; its previous version remains in
 Git history. A tiny HTTP health endpoint is retained for Render Web Services.
 """
+import logging
 import os
 from threading import Thread
 from flask import Flask
 from sniper_ai.bot import main as run_sniper
+
+# httpx logs full request URLs, which include the Telegram bot token.
+# Keep those request logs out of Render's application logs.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 health_app = Flask(__name__)
 
