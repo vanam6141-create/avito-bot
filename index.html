@@ -27,7 +27,7 @@ label{font-size:12px;color:var(--muted)}input[type=text],input[type=number],sele
 <button class="tile" onclick="go('analytics')"><i>⌁</i>Аналитика<small>Рынок и выгода</small></button></div>
 <div class="notice">Демо-интерфейс: живой поиск Avito ещё не подключён. Приложение не показывает вымышленные объявления как реальные сделки.</div></section>
 <section class="page" id="search"><h1>Новый поиск</h1><p class="sub">Собери собственный фильтр объявлений</p><div class="card"><label>Что ищем?</label><input id="query" type="text" placeholder="Например, MacBook Air M2"><label>Регион</label><select id="region"><option>Вся Россия</option><option>Москва</option><option>Санкт-Петербург</option><option>Казань</option><option>Екатеринбург</option></select><label>Максимальная цена, ₽</label><input id="price" type="number" placeholder="Без ограничения"><label>Состояние</label><select id="condition"><option>Любое</option><option>Новое</option><option>Б/у</option></select><button class="primary" onclick="saveSearch()">Сохранить фильтр</button><p class="muted" id="searchMsg"></p></div><div class="head"><b>Твои фильтры</b><span>ОБЩИЕ С БОТОМ</span></div><div class="card" id="searchList"><p class="muted">Загружаем поиски…</p></div></section>
-<section class="page" id="deals"><h1>Объявления Avito</h1><p class="sub">Открывай реальные результаты поиска Avito по своим фильтрам</p><div class="card"><b>Твои поиски</b><p class="muted">Нажми «Смотреть на Avito», чтобы открыть актуальную выдачу на сайте Avito. Объявления и цены загружаются непосредственно Avito.</p><div id="avitoSearchList"><p class="muted">Загружаем поиски…</p></div></div><div class="notice">Avito пока не предоставляет этому приложению подключённую официальную ленту объявлений. Поэтому просмотр открывается на Avito, а не через выдуманные карточки внутри приложения.</div></section>
+<section class="page" id="deals"><h1>Объявления Avito</h1><p class="sub">Открывай реальные результаты поиска Avito по своим фильтрам</p><div class="card"><b>Твои поиски</b><p class="muted">Нажми «Смотреть на Avito», чтобы открыть актуальную выдачу на сайте Avito. Объявления и цены загружаются непосредственно Avito.</p><div id="avitoSearchList"><p class="muted">Загружаем поиски…</p></div></div><div class="head"><b>Отслеживаемые товары</b><span>СОХРАНЁННЫЕ ССЫЛКИ</span></div><div class="card" id="trackedProducts"><p class="muted">Загружаем товары…</p></div><div class="notice">Avito пока не предоставляет этому приложению подключённую официальную ленту объявлений. Поэтому просмотр открывается на Avito, а не через выдуманные карточки внутри приложения.</div></section>
 <section class="page" id="categories"><h1>Категории</h1><p class="sub">Выбери направления мониторинга</p><div class="card" id="catList"></div><button class="primary" onclick="saveCats()">Сохранить категории</button><p class="muted" id="catMsg"></p></section>
 <section class="page" id="analytics"><h1>Аналитика</h1><p class="sub">Рыночная картина после загрузки объявлений</p><div class="metrics"><div class="metric"><small>Средняя скидка</small><b>—</b></div><div class="metric"><small>Ликвидность</small><b>—</b></div><div class="metric"><small>Риск сделки</small><b>—</b></div><div class="metric"><small>Чистая выгода</small><b>—</b></div></div><div class="card muted">Не рассчитываем прибыль без сопоставимых рыночных цен и расходов на доставку, ремонт и комиссии.</div></section>
 <section class="page" id="settings"><h1>Настройки AI</h1><p class="sub">Управляй строгостью отбора</p><div class="card"><div class="flex"><div><b>Минимальный рейтинг</b><div class="muted">Чем выше порог — тем строже отбор</div></div><div class="stepper"><button onclick="change(-5)">−</button><strong id="score">70</strong><button onclick="change(5)">+</button></div></div><div class="track"><i id="bar2"></i></div><p class="muted">Скидка сама по себе не гарантирует выгоду. Учитываем состояние, ликвидность и риски.</p></div><div class="card"><b>Стратегия</b><p class="muted">Balanced · вся Россия · Avito Доставка · покупка только после твоего подтверждения.</p><div class="rowitem"><span>Уведомления о сильных находках</span><input type="checkbox" checked></div></div></section>
@@ -60,7 +60,7 @@ function go(id,el){
  if(el)el.classList.add('active');
  else document.querySelectorAll('.tab')[['home','search','deals','analytics','settings'].indexOf(id)]?.classList.add('active');
  if(id==='search')loadSearches();
- if(id==='deals')loadAvitoSearches();
+ if(id==='deals'){loadAvitoSearches();loadTrackedProducts();}
  if(id==='settings')loadSettings();
  window.scrollTo(0,0);
 }
@@ -88,6 +88,14 @@ function openExternal(url){
 function openAvitoSearch(id){
  const s=searches.find(x=>x.id===id);
  if(s)openExternal(avitoUrl(s));
+}
+async function loadTrackedProducts(){
+ const host=document.getElementById('trackedProducts');
+ try{
+  const products=await api('/api/products');
+  if(!products.length){host.innerHTML='<p class="muted">Пока нет товаров. В Telegram нажми «Отслеживать товар по ссылке» и отправь ссылку на исходное объявление.</p>';return}
+  host.innerHTML=products.map(p=>'<div class="rowitem"><div style="min-width:0;flex:1"><b>'+escapeHtml(p.title)+'</b><div class="muted">Исходная цена: '+(p.baseline_price?Number(p.baseline_price).toLocaleString('ru-RU')+' ₽':'не указана')+' · Получено похожих: '+p.matches+'</div><a href="'+escapeHtml(p.source_url)+'" target="_blank" rel="noopener" style="color:var(--teal)">Исходное объявление ↗</a></div></div>').join('');
+ }catch(e){host.innerHTML='<p class="muted">'+escapeHtml(e.message)+'</p>'}
 }
 async function loadAvitoSearches(){
  const host=document.getElementById('avitoSearchList');
