@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import re
+from urllib.parse import urlparse
 
 from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, MenuButtonWebApp, Update, WebAppInfo
 from telegram.ext import (
@@ -23,6 +25,7 @@ def dashboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 Открыть Mini App", web_app=WebAppInfo(url=MINI_APP_URL))],
         [InlineKeyboardButton("➕ Создать поиск", callback_data="add")],
+        [InlineKeyboardButton("📌 Отслеживать товар по ссылке", callback_data="track")],
         [
             InlineKeyboardButton("🔎 Мои поиски", callback_data="searches"),
             InlineKeyboardButton("📊 Статистика", callback_data="status"),
@@ -223,6 +226,9 @@ def build_application(settings: Settings) -> Application:
             await show_home(update, context, edit=True)
         elif data == "add":
             await begin_add(update, context)
+        elif data == "track":
+            context.user_data["awaiting_product"] = True
+            await query.message.reply_text("📌 Отправь ссылку на объявление Avito. Я сохраню исходный товар. Пересылай сюда уведомления Avito о похожих объявлениях — бот сравнит цены и сохранит историю. Автономный обход сайта пока не подключён.")
         elif data == "searches":
             await show_searches(update, context)
         elif data == "status":
@@ -284,7 +290,24 @@ def build_application(settings: Settings) -> Application:
         msg, user = update.effective_message, update.effective_user
         if not msg or not user:
             return
-        value = (msg.text or "").strip()
+        value = (msg.text or msg.caption or "").strip()
+        if context.user_data.get("awaiting_product"):
+            if value.lower() in {"отмена", "cancel"}:
+                context.user_data.pop("awaiting_product", None)
+                await msg.reply_text("Добавление товара отменено.", reply_markup=dashboard())
+                return
+            urls = re.findall(r"https?://\\S+", value)
+            valid = next((u.rstrip(".,);]") for u in urls if urlparse(u).hostname and (urlparse(u).hostname == "avito.ru" or urlparse(u).hostname.endswith(".avito.ru"))), None)
+            if not valid:
+                await msg.reply_text("Не вижу корректную ссылку avito.ru. Пришли ссылку на объявление или «Отмена».")
+                return
+            title = " ".join(value.replace(valid, "").split())[:180] or "Товар с Avito"
+            pm = re.search(r"(?<!\\d)(\\d[\\d\\s]{2,})(?:\\s?₽|\\sруб)", value, re.I)
+            price = int(re.sub(r"\\D", "", pm.group(1))) if pm else None
+            product_id = db.add_tracked_product(user.id, valid, title, price)
+            context.user_data.pop("awaiting_product", None)
+            await msg.reply_text(f"✅ Товар №{product_id} сохранён.\\nНазвание: {title}\\nИсходная цена: {price:,} ₽".replace(",", " ") if price else f"✅ Товар №{product_id} сохранён.\\nНазвание: {title}\\nЦена не распознана.", reply_markup=dashboard())
+            return
         if context.user_data.get("awaiting_search"):
             if value.lower() in {"отмена", "cancel"}:
                 context.user_data.pop("awaiting_search", None)
@@ -303,6 +326,20 @@ def build_application(settings: Settings) -> Application:
                 ]),
                 parse_mode="HTML"
             )
+            return
+        urls = re.findall(r"https?://\\S+", value)
+        valid = next((u.rstrip(".,);]") for u in urls if urlparse(u).hostname and (urlparse(u).hostname == "avito.ru" or urlparse(u).hostname.endswith(".avito.ru"))), None)
+        pm = re.search(r"(?<!\\d)(\\d[\\d\\s]{2,})(?:\\s?₽|\\sруб)", value, re.I)
+        if valid:
+            products = db.list_tracked_products(user.id)
+            if not products:
+                await msg.reply_text("Сначала добавь исходный товар через кнопку «Отслеживать товар по ссылке» в /start.")
+                return
+            price = int(re.sub(r"\\D", "", pm.group(1))) if pm else None
+            product = products[0]
+            title = " ".join(value.replace(valid, "").split())[:180] or "Объявление Avito"
+            added = db.add_observed_listing(product["id"], valid, title, price)
+            await msg.reply_text(f"Новое объявление сохранено для «{product['title']}». Цена: {price:,} ₽".replace(",", " ") if added and price else ("Новое объявление сохранено." if added else "Это объявление уже сохранено."))
             return
         await msg.reply_text("Открой панель управления командой /start.", reply_markup=dashboard())
 
