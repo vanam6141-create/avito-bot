@@ -22,6 +22,11 @@ CREATE TABLE IF NOT EXISTS searches (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_searches_owner ON searches(owner_id, enabled);
+CREATE TABLE IF NOT EXISTS user_settings (
+    owner_id INTEGER PRIMARY KEY REFERENCES users(telegram_id) ON DELETE CASCADE,
+    min_score INTEGER NOT NULL DEFAULT 70 CHECK(min_score BETWEEN 0 AND 100),
+    categories_json TEXT NOT NULL DEFAULT '[]'
+);
 CREATE TABLE IF NOT EXISTS listings (
     id TEXT PRIMARY KEY,
     search_id INTEGER REFERENCES searches(id) ON DELETE SET NULL,
@@ -114,6 +119,30 @@ class Database:
         with self.transaction() as conn:
             cur = conn.execute("UPDATE searches SET enabled=? WHERE owner_id=?", (int(enabled), owner_id))
             return cur.rowcount
+
+    def get_settings(self, owner_id: int) -> dict:
+        import json
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT min_score, categories_json FROM user_settings WHERE owner_id=?",
+                (owner_id,),
+            ).fetchone()
+        if not row:
+            return {"min_score": 70, "categories": ["Телефоны", "Компьютеры", "Электроника"]}
+        try:
+            categories = json.loads(row["categories_json"])
+        except (TypeError, ValueError):
+            categories = []
+        return {"min_score": int(row["min_score"]), "categories": categories}
+
+    def set_settings(self, owner_id: int, *, min_score: int, categories: list[str]) -> None:
+        import json
+        with self.transaction() as conn:
+            conn.execute(
+                "INSERT INTO user_settings(owner_id, min_score, categories_json) VALUES(?,?,?) "
+                "ON CONFLICT(owner_id) DO UPDATE SET min_score=excluded.min_score, categories_json=excluded.categories_json",
+                (owner_id, min_score, json.dumps(categories, ensure_ascii=False)),
+            )
 
     def stats(self, owner_id: int) -> tuple[int, int]:
         with self.connect() as conn:
