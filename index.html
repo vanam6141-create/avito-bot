@@ -26,7 +26,7 @@ label{font-size:12px;color:var(--muted)}input[type=text],input[type=number],sele
 <button class="tile" onclick="go('categories')"><i>▦</i>Категории<small>Выбрать направления</small></button>
 <button class="tile" onclick="go('analytics')"><i>⌁</i>Аналитика<small>Рынок и выгода</small></button></div>
 <div class="notice">Демо-интерфейс: живой поиск Avito ещё не подключён. Приложение не показывает вымышленные объявления как реальные сделки.</div></section>
-<section class="page" id="search"><h1>Новый поиск</h1><p class="sub">Собери собственный фильтр объявлений</p><div class="card"><label>Что ищем?</label><input id="query" type="text" placeholder="Например, MacBook Air M2"><label>Регион</label><select id="region"><option>Вся Россия</option><option>Москва</option><option>Санкт-Петербург</option><option>Казань</option><option>Екатеринбург</option></select><label>Максимальная цена, ₽</label><input id="price" type="number" placeholder="Без ограничения"><label>Состояние</label><select id="condition"><option>Любое</option><option>Новое</option><option>Б/у</option></select><button class="primary" onclick="saveSearch()">Сохранить фильтр</button><p class="muted" id="searchMsg"></p></div></section>
+<section class="page" id="search"><h1>Новый поиск</h1><p class="sub">Собери собственный фильтр объявлений</p><div class="card"><label>Что ищем?</label><input id="query" type="text" placeholder="Например, MacBook Air M2"><label>Регион</label><select id="region"><option>Вся Россия</option><option>Москва</option><option>Санкт-Петербург</option><option>Казань</option><option>Екатеринбург</option></select><label>Максимальная цена, ₽</label><input id="price" type="number" placeholder="Без ограничения"><label>Состояние</label><select id="condition"><option>Любое</option><option>Новое</option><option>Б/у</option></select><button class="primary" onclick="saveSearch()">Сохранить фильтр</button><p class="muted" id="searchMsg"></p></div><div class="head"><b>Твои фильтры</b><span>ОБЩИЕ С БОТОМ</span></div><div class="card" id="searchList"><p class="muted">Загружаем поиски…</p></div></section>
 <section class="page" id="deals"><h1>Лента находок</h1><p class="sub">Только объявления из подключённого источника</p><div class="card"><b>Пока нет реальных объявлений</b><p class="muted">После подключения разрешённого источника здесь появятся цена продавца, рыночная оценка, чистая выгода, доставка, риски и ссылка на объявление.</p></div></section>
 <section class="page" id="categories"><h1>Категории</h1><p class="sub">Выбери направления мониторинга</p><div class="card" id="catList"></div><button class="primary" onclick="saveCats()">Сохранить категории</button><p class="muted" id="catMsg"></p></section>
 <section class="page" id="analytics"><h1>Аналитика</h1><p class="sub">Рыночная картина после загрузки объявлений</p><div class="metrics"><div class="metric"><small>Средняя скидка</small><b>—</b></div><div class="metric"><small>Ликвидность</small><b>—</b></div><div class="metric"><small>Риск сделки</small><b>—</b></div><div class="metric"><small>Чистая выгода</small><b>—</b></div></div><div class="card muted">Не рассчитываем прибыль без сопоставимых рыночных цен и расходов на доставку, ремонт и комиссии.</div></section>
@@ -34,15 +34,87 @@ label{font-size:12px;color:var(--muted)}input[type=text],input[type=number],sele
 </main>
 <nav class="tabs"><button class="tab active" onclick="go('home',this)"><i>⌂</i>Главная</button><button class="tab" onclick="go('search',this)"><i>⌕</i>Поиск</button><button class="tab" onclick="go('deals',this)"><i>✦</i>Находки</button><button class="tab" onclick="go('analytics',this)"><i>⌁</i>Аналитика</button><button class="tab" onclick="go('settings',this)"><i>⚙</i>Настройки</button></nav>
 <script>
-const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();
-const read=(k,d)=>{try{return JSON.parse(localStorage.getItem('sniper_'+k))??d}catch{return d}},write=(k,v)=>localStorage.setItem('sniper_'+k,JSON.stringify(v));
-let score=read('score',70),cats=read('cats',['Телефоны','Компьютеры','Электроника']),searches=read('searches',[]);
+const tg=window.Telegram?.WebApp;
+tg?.ready();tg?.expand();
+const auth=tg?.initData||'';
+const headers={'Content-Type':'application/json','X-Telegram-Init-Data':auth};
+let score=70,cats=['Телефоны','Компьютеры','Электроника'],searches=[];
 const names=['Телефоны','Компьютеры','Электроника','Фото и видео','Авто','Дом и ремонт','Одежда и обувь','Детские товары','Спорт и отдых','Коллекционирование','Инструменты','Музыкальное оборудование'];
-function render(){document.getElementById('score').textContent=score;document.getElementById('heroScore').textContent=score+' / 100';document.getElementById('bar').style.width=score+'%';document.getElementById('bar2').style.width=score+'%'}
-function change(d){score=Math.max(0,Math.min(100,score+d));write('score',score);render();tg?.HapticFeedback?.impactOccurred('light');tg?.sendData?.(JSON.stringify({type:'settings',min_score:score}))}
-function go(id,el){document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===id));document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));if(el)el.classList.add('active');else document.querySelectorAll('.tab')[['home','search','deals','analytics','settings'].indexOf(id)]?.classList.add('active');window.scrollTo(0,0)}
-function saveSearch(){let q=document.getElementById('query').value.trim();if(!q){document.getElementById('query').focus();return}let item={query:q,region:document.getElementById('region').value,price:document.getElementById('price').value,condition:document.getElementById('condition').value};searches.unshift(item);write('searches',searches);document.getElementById('searchMsg').textContent='Фильтр сохранён на этом устройстве. Живой поиск пока не подключён.';tg?.sendData?.(JSON.stringify({type:'save_search',...item}))}
-document.getElementById('catList').innerHTML=names.map(n=>'<label class="rowitem"><span>'+n+'</span><input type="checkbox" value="'+n+'" '+(cats.includes(n)?'checked':'')+'></label>').join('');
-function saveCats(){cats=[...document.querySelectorAll('#catList input:checked')].map(x=>x.value);write('cats',cats);document.getElementById('catMsg').textContent='Категории сохранены на этом устройстве.';tg?.sendData?.(JSON.stringify({type:'categories',categories:cats}))}
-render();
+async function api(path,options={}) {
+ const response=await fetch(path,{...options,headers:{...headers,...(options.headers||{})}});
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok) throw new Error(data.error||'Ошибка соединения');
+ return data;
+}
+function message(id,text){const el=document.getElementById(id);if(el)el.textContent=text}
+function render(){
+ document.getElementById('score').textContent=score;
+ document.getElementById('heroScore').textContent=score+' / 100';
+ document.getElementById('bar').style.width=score+'%';
+ document.getElementById('bar2').style.width=score+'%';
+ document.getElementById('savedCount').textContent='0';
+}
+function go(id,el){
+ document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===id));
+ document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+ if(el)el.classList.add('active');
+ else document.querySelectorAll('.tab')[['home','search','deals','analytics','settings'].indexOf(id)]?.classList.add('active');
+ if(id==='search')loadSearches();
+ if(id==='settings')loadSettings();
+ window.scrollTo(0,0);
+}
+async function loadSearches(){
+ const host=document.getElementById('searchList');
+ try{
+  searches=await api('/api/searches');
+  document.getElementById('savedCount').textContent=String(searches.length);
+  if(!searches.length){host.innerHTML='<p class="muted">Пока нет фильтров. Создай первый выше или добавь его в Telegram-боте.</p>';return}
+  host.innerHTML=searches.map(s=>'<div class="rowitem"><div><b>'+escapeHtml(s.query)+'</b><div class="muted">'+escapeHtml(s.region)+' · '+(s.max_price?Number(s.max_price).toLocaleString('ru-RU')+' ₽':'без лимита')+' · '+(s.enabled?'🟢 активен':'⏸ пауза')+'</div></div><div style="display:flex;gap:7px"><button class="stepper button" style="padding:7px;border:1px solid var(--line);border-radius:9px;background:#1b2a39;color:var(--txt)" onclick="toggleSearch('+s.id+','+(!s.enabled)+')">'+(s.enabled?'⏸':'▶️')+'</button><button style="padding:7px;border:1px solid var(--line);border-radius:9px;background:#1b2a39;color:var(--txt)" onclick="deleteSearch('+s.id+')">🗑</button></div></div>').join('');
+ }catch(e){host.innerHTML='<p class="muted">'+escapeHtml(e.message)+'. Открой приложение через кнопку в Telegram, чтобы сервер мог проверить твой аккаунт.</p>'}
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function saveSearch(){
+ const q=document.getElementById('query').value.trim();
+ if(!q){document.getElementById('query').focus();return}
+ const raw=document.getElementById('price').value;
+ try{
+  await api('/api/searches',{method:'POST',body:JSON.stringify({query:q,region:document.getElementById('region').value,max_price:raw||null})});
+  message('searchMsg','Фильтр сохранён на сервере. Он появится и в Telegram-боте.');
+  document.getElementById('query').value='';document.getElementById('price').value='';
+  await loadSearches();tg?.HapticFeedback?.notificationOccurred('success');
+ }catch(e){message('searchMsg',e.message)}
+}
+async function toggleSearch(id,enabled){
+ try{await api('/api/searches/'+id,{method:'PATCH',body:JSON.stringify({enabled})});await loadSearches()}
+ catch(e){message('searchMsg',e.message)}
+}
+async function deleteSearch(id){
+ if(!confirm('Удалить этот поисковый фильтр?'))return;
+ try{await api('/api/searches/'+id,{method:'DELETE'});await loadSearches()}
+ catch(e){message('searchMsg',e.message)}
+}
+async function loadSettings(){
+ try{
+  const data=await api('/api/settings');score=data.min_score;cats=data.categories||[];
+  document.querySelectorAll('#catList input').forEach(x=>x.checked=cats.includes(x.value));
+  render();
+ }catch(e){message('catMsg',e.message)}
+}
+async function change(d){
+ score=Math.max(0,Math.min(100,score+d));render();
+ try{await api('/api/settings',{method:'PUT',body:JSON.stringify({min_score:score,categories:cats})});tg?.HapticFeedback?.impactOccurred('light')}
+ catch(e){message('catMsg',e.message)}
+}
+document.getElementById('catList').innerHTML=names.map(n=>'<label class="rowitem"><span>'+n+'</span><input type="checkbox" value="'+n+'"></label>').join('');
+async function saveCats(){
+ cats=[...document.querySelectorAll('#catList input:checked')].map(x=>x.value);
+ try{await api('/api/settings',{method:'PUT',body:JSON.stringify({min_score:score,categories:cats})});message('catMsg','Категории сохранены на сервере и доступны боту.')}
+ catch(e){message('catMsg',e.message)}
+}
+async function init(){
+ if(!auth){message('searchMsg','Открой Mini App через кнопку «Открыть приложение» внутри Telegram.');document.getElementById('searchList').innerHTML='<p class="muted">Для защищённого доступа открой приложение из Telegram-бота.</p>';return}
+ try{await loadSettings();await loadSearches()}
+ catch(e){message('searchMsg',e.message)}
+}
+render();init();
 </script></body></html>
