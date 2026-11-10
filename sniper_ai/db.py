@@ -22,6 +22,30 @@ CREATE TABLE IF NOT EXISTS searches (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_searches_owner ON searches(owner_id, enabled);
+CREATE TABLE IF NOT EXISTS tracked_products (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ owner_id INTEGER NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+ source_url TEXT NOT NULL,
+ title TEXT NOT NULL,
+ baseline_price INTEGER,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS observed_listings (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ product_id INTEGER NOT NULL REFERENCES tracked_products(id) ON DELETE CASCADE,
+ url TEXT NOT NULL,
+ title TEXT NOT NULL,
+ price INTEGER,
+ observed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE(product_id, url)
+);
+CREATE TABLE IF NOT EXISTS price_history (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ product_id INTEGER NOT NULL REFERENCES tracked_products(id) ON DELETE CASCADE,
+ price INTEGER NOT NULL,
+ source TEXT NOT NULL,
+ recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS user_settings (
     owner_id INTEGER PRIMARY KEY REFERENCES users(telegram_id) ON DELETE CASCADE,
     min_score INTEGER NOT NULL DEFAULT 70 CHECK(min_score BETWEEN 0 AND 100),
@@ -149,3 +173,46 @@ class Database:
             searches = conn.execute("SELECT COUNT(*) FROM searches WHERE owner_id=? AND enabled=1", (owner_id,)).fetchone()[0]
             alerts = conn.execute("SELECT COUNT(*) FROM notification_log WHERE telegram_id=?", (owner_id,)).fetchone()[0]
             return int(searches), int(alerts)
+
+    def add_tracked_product(self, owner_id: int, source_url: str, title: str, price: int | None) -> int:
+        with self.transaction() as conn:
+            cur = conn.execute(
+                "INSERT INTO tracked_products(owner_id,source_url,title,baseline_price) VALUES(?,?,?,?)",
+                (owner_id, source_url, title, price),
+            )
+            product_id = int(cur.lastrowid)
+            if price is not None:
+                conn.execute("INSERT INTO price_history(product_id,price,source) VALUES(?,?,?)",
+                             (product_id, price, "source_listing"))
+            return product_id
+
+    def list_tracked_products(self, owner_id: int) -> list[dict]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT p.*, (SELECT COUNT(*) FROM observed_listings o WHERE o.product_id=p.id) AS matches "
+                "FROM tracked_products p WHERE owner_id=? ORDER BY id DESC", (owner_id,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_tracked_product(self, owner_id: int, product_id: int):
+        with self.connect() as conn:
+            return conn.execute("SELECT * FROM tracked_products WHERE owner_id=? AND id=?",
+                                (owner_id, product_id)).fetchone()
+
+    def add_observed_listing(self, product_id: int, url: str, title: str, price: int | None) -> bool:
+        with self.transaction() as conn:
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO observed_listings(product_id,url,title,price) VALUES(?,?,?,?)",
+                (product_id, url, title, price),
+            )
+            if cur.rowcount and price is not None:
+                conn.execute("INSERT INTO price_history(product_id,price,source) VALUES(?,?,?)",
+                             (product_id, price, "forwarded_avito_alert"))
+            return cur.rowcount > 0
+
+    def list_product_history(self, owner_id: int, product_id: int) -> list[dict]:
+        with self.connect() as conn:
+            return [dict(r) for r in conn.execute(
+                "SELECT h.* FROM price_history h JOIN tracked_products p ON p.id=h.product_id "
+                "WHERE p.owner_id=? AND p.id=? ORDER BY h.recorded_at DESC LIMIT 100",
+                (owner_id, product_id))]
