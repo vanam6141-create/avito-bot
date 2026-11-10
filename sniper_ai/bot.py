@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, MenuButtonWebApp, Update, WebAppInfo
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -15,12 +15,12 @@ from telegram.ext import (
 from .config import Settings
 from .db import Database
 
-LOG = logging.getLogger("avito_sniper_ai")
+LOG = logging.getLogger("avito_sniper_ai")\nMINI_APP_URL = "https://avito-sniper-ai.onrender.com/"
 
 
 def dashboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("➕ Создать поиск", callback_data="add")],
+        [InlineKeyboardButton("🚀 Открыть Mini App", web_app=WebAppInfo(url=MINI_APP_URL))],\n        [InlineKeyboardButton("➕ Создать поиск", callback_data="add")],
         [
             InlineKeyboardButton("🔎 Мои поиски", callback_data="searches"),
             InlineKeyboardButton("📊 Статистика", callback_data="status"),
