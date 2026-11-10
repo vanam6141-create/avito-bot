@@ -384,7 +384,7 @@ def build_application(settings: Settings) -> Application:
     app.add_handler(CommandHandler("resume", resume_command))
     app.add_handler(CommandHandler("help", start))
     app.add_handler(CallbackQueryHandler(callback_router))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu_text))
+    app.add_handler(MessageHandler((filters.TEXT | filters.CAPTION) & ~filters.COMMAND, menu_text))
     app.add_error_handler(error_handler)
     app.bot_data["settings"] = settings
     app.bot_data["database"] = db
