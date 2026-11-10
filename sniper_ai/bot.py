@@ -15,12 +15,14 @@ from telegram.ext import (
 from .config import Settings
 from .db import Database
 
-LOG = logging.getLogger("avito_sniper_ai")\nMINI_APP_URL = "https://avito-sniper-ai.onrender.com/"
+LOG = logging.getLogger("avito_sniper_ai")
+MINI_APP_URL = "https://avito-sniper-ai.onrender.com/"
 
 
 def dashboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 Открыть Mini App", web_app=WebAppInfo(url=MINI_APP_URL))],\n        [InlineKeyboardButton("➕ Создать поиск", callback_data="add")],
+        [InlineKeyboardButton("🚀 Открыть Mini App", web_app=WebAppInfo(url=MINI_APP_URL))],
+        [InlineKeyboardButton("➕ Создать поиск", callback_data="add")],
         [
             InlineKeyboardButton("🔎 Мои поиски", callback_data="searches"),
             InlineKeyboardButton("📊 Статистика", callback_data="status"),
@@ -45,11 +47,12 @@ def build_application(settings: Settings) -> Application:
             db.register_user(user.id, user.username)
         text = (
             "🎯 <b>AVITO SNIPER AI</b>\n"
-            "Твоя панель управления поиском выгодных объявлений\n\n"
-            "Выбери нужный раздел ниже.\n\n"
-            "🟡 <b>Режим:</b> настройка фильтров\n"
-            "⚪ <b>Источник:</b> Avito ещё не подключён"
-        )
+            "Управление поисками и фильтрами в одном месте.\n\n"
+            "Выбери действие:\n"
+            "• создай поисковый фильтр;\n"
+            "• управляй сохранёнными поисками;\n"
+            "• меняй параметры и смотри статистику.\n\n"
+            "⚪ <b>Статус источника:</b> Avito пока не подключён"
         if edit and update.callback_query and update.callback_query.message:
             await update.callback_query.message.edit_text(
                 text, reply_markup=dashboard(), parse_mode="HTML"
