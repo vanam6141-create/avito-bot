@@ -3,14 +3,13 @@ from __future__ import annotations
 import logging
 import re
 from telegram import Update
-from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from .config import Settings
 from .db import Database
 
 LOG = logging.getLogger("avito_sniper_ai")
-QUERY_RE = re.compile(r"^/addsearch\s+(.+)$", re.IGNORECASE | re.DOTALL)
+QUERY_RE = re.compile(r"^/addsearch\\s+(.+)$", re.IGNORECASE | re.DOTALL)
 
 
 def build_application(settings: Settings) -> Application:
@@ -22,7 +21,7 @@ def build_application(settings: Settings) -> Application:
             return
         db.register_user(user.id, user.username)
         await update.effective_message.reply_text(
-            "🎯 *Avito Sniper AI*\n\n"
+            "🎯 Avito Sniper AI\n\n"
             "Отдельный бот мониторинга. Пока подключены настройки и база данных; "
             "источник объявлений ещё не активирован.\n\n"
             "Команды:\n"
@@ -30,8 +29,7 @@ def build_application(settings: Settings) -> Application:
             "/searches — мои фильтры\n"
             "/pause — приостановить фильтры\n"
             "/resume — включить фильтры\n"
-            "/status — состояние",
-            parse_mode=ParseMode.MARKDOWN,
+            "/status — состояние"
         )
 
     async def addsearch(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -77,7 +75,7 @@ def build_application(settings: Settings) -> Application:
             state = "включён" if row["enabled"] else "пауза"
             price = f"до {row['max_price']} ₽" if row["max_price"] else "без лимита цены"
             lines.append(f"#{row['id']} · {row['query']} · {row['region']} · {price} · {state}")
-        await msg.reply_text("\n".join(lines))
+        await msg.reply_text("\\n".join(lines))
 
     async def set_enabled(update: Update, context: ContextTypes.DEFAULT_TYPE, enabled: bool) -> None:
         user = update.effective_user
@@ -100,7 +98,7 @@ def build_application(settings: Settings) -> Application:
             return
         active, alerts = db.stats(user.id)
         await msg.reply_text(
-            f"Состояние Sniper AI\nАктивных фильтров: {active}\nУведомлений: {alerts}\n"
+            f"Состояние Sniper AI\\nАктивных фильтров: {active}\\nУведомлений: {alerts}\\n"
             "Источник Avito: не подключён. Покупки бот не совершает."
         )
 
@@ -122,10 +120,12 @@ def build_application(settings: Settings) -> Application:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     settings = Settings.from_env()
     application = build_application(settings)
     LOG.info("Starting separate Avito Sniper AI Telegram bot")
     application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=False)
+
 
 if __name__ == "__main__":
     main()
