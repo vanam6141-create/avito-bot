@@ -90,6 +90,26 @@ class Database:
                 "WHERE owner_id=? ORDER BY id DESC", (owner_id,)
             ))
 
+    def get_search(self, owner_id: int, search_id: int) -> sqlite3.Row | None:
+        with self.connect() as conn:
+            return conn.execute(
+                "SELECT id, query, region, max_price, enabled FROM searches WHERE owner_id=? AND id=?",
+                (owner_id, search_id),
+            ).fetchone()
+
+    def set_search_enabled(self, owner_id: int, search_id: int, enabled: bool) -> bool:
+        with self.transaction() as conn:
+            cur = conn.execute(
+                "UPDATE searches SET enabled=? WHERE owner_id=? AND id=?",
+                (int(enabled), owner_id, search_id),
+            )
+            return cur.rowcount > 0
+
+    def delete_search(self, owner_id: int, search_id: int) -> bool:
+        with self.transaction() as conn:
+            cur = conn.execute("DELETE FROM searches WHERE owner_id=? AND id=?", (owner_id, search_id))
+            return cur.rowcount > 0
+
     def set_searches_enabled(self, owner_id: int, enabled: bool) -> int:
         with self.transaction() as conn:
             cur = conn.execute("UPDATE searches SET enabled=? WHERE owner_id=?", (int(enabled), owner_id))
