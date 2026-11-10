@@ -53,6 +53,7 @@ def build_application(settings: Settings) -> Application:
             "• управляй сохранёнными поисками;\n"
             "• меняй параметры и смотри статистику.\n\n"
             "⚪ <b>Статус источника:</b> Avito пока не подключён"
+        )
         if edit and update.callback_query and update.callback_query.message:
             await update.callback_query.message.edit_text(
                 text, reply_markup=dashboard(), parse_mode="HTML"
