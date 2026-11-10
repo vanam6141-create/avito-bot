@@ -296,13 +296,13 @@ def build_application(settings: Settings) -> Application:
                 context.user_data.pop("awaiting_product", None)
                 await msg.reply_text("Добавление товара отменено.", reply_markup=dashboard())
                 return
-            urls = re.findall(r"https?://\\S+", value)
+            urls = re.findall(r"https?://\S+", value)
             valid = next((u.rstrip(".,);]") for u in urls if urlparse(u).hostname and (urlparse(u).hostname == "avito.ru" or urlparse(u).hostname.endswith(".avito.ru"))), None)
             if not valid:
                 await msg.reply_text("Не вижу корректную ссылку avito.ru. Пришли ссылку на объявление или «Отмена».")
                 return
             title = " ".join(value.replace(valid, "").split())[:180] or "Товар с Avito"
-            pm = re.search(r"(?<!\\d)(\\d[\\d\\s]{2,})(?:\\s?₽|\\sруб)", value, re.I)
+            pm = re.search(r"(?<!\d)(\d[\d\s]{2,})(?:\s?₽|\sруб)", value, re.I)
             price = int(re.sub(r"\\D", "", pm.group(1))) if pm else None
             product_id = db.add_tracked_product(user.id, valid, title, price)
             context.user_data.pop("awaiting_product", None)
@@ -327,9 +327,9 @@ def build_application(settings: Settings) -> Application:
                 parse_mode="HTML"
             )
             return
-        urls = re.findall(r"https?://\\S+", value)
+        urls = re.findall(r"https?://\S+", value)
         valid = next((u.rstrip(".,);]") for u in urls if urlparse(u).hostname and (urlparse(u).hostname == "avito.ru" or urlparse(u).hostname.endswith(".avito.ru"))), None)
-        pm = re.search(r"(?<!\\d)(\\d[\\d\\s]{2,})(?:\\s?₽|\\sруб)", value, re.I)
+        pm = re.search(r"(?<!\d)(\d[\d\s]{2,})(?:\s?₽|\sруб)", value, re.I)
         if valid:
             products = db.list_tracked_products(user.id)
             if not products:
