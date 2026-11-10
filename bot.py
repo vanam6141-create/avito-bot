@@ -120,6 +120,24 @@ def api_delete_search(search_id):
     return jsonify({"ok": True})
 
 
+@health_app.get("/api/products")
+def api_products():
+    user_id, error = require_user()
+    if error:
+        return error
+    return jsonify(db.list_tracked_products(user_id))
+
+
+@health_app.get("/api/products/<int:product_id>/history")
+def api_product_history(product_id):
+    user_id, error = require_user()
+    if error:
+        return error
+    if not db.get_tracked_product(user_id, product_id):
+        return jsonify({"error": "Товар не найден"}), 404
+    return jsonify(db.list_product_history(user_id, product_id))
+
+
 @health_app.get("/api/settings")
 def api_get_settings():
     user_id, error = require_user()
